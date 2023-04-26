@@ -1,0 +1,137 @@
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
+buildscript {
+    repositories {
+        gradlePluginPortal()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+
+    dependencies {
+        classpath "org.springframework.boot:spring-boot-gradle-plugin:$sbVersion"
+        classpath "com.palantir.baseline:gradle-baseline-java:4.185.0"
+        classpath "io.spring.gradle:dependency-management-plugin:1.1.0"
+        classpath "org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:3.5.0.2730"
+        classpath "com.diffplug.spotless:spotless-plugin-gradle:6.12.1"
+        classpath 'org.owasp:dependency-check-gradle:7.4.4'
+        classpath "gradle.plugin.net.nemerosa:versioning:3.0.0"
+    }
+}
+
+subprojects {
+    group 'com.fortycoderplus.template'
+    version "1.0.0"
+
+    apply plugin: 'java'
+    apply plugin: 'java-library'
+    apply plugin: 'maven-publish'
+    apply plugin: 'io.spring.dependency-management'
+    apply plugin: "net.nemerosa.versioning"
+    apply plugin: 'idea'
+
+    repositories {
+        mavenLocal()
+        maven {
+            credentials {
+                username "$nexusUsername"
+                password "$nexusPassword"
+            }
+            url "$nexusRelease"
+        }
+        maven {
+            credentials {
+                username "$nexusUsername"
+                password "$nexusPassword"
+            }
+            url "$nexusSnapshot"
+        }
+        mavenCentral()
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom "org.springframework.boot:spring-boot-starter-parent:${sbVersion}"
+        }
+    }
+
+    dependencies {
+        // lombok
+        compileOnly "org.projectlombok:lombok:1.18.24"
+        annotationProcessor "org.projectlombok:lombok:1.18.24"
+        // mapstruct
+        implementation 'org.mapstruct:mapstruct:1.5.2.Final'
+        annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.2.Final'
+
+        // test:junit
+        testImplementation "org.junit.jupiter:junit-jupiter-api:$junitVersion"
+        testImplementation "org.junit.jupiter:junit-jupiter-params:$junitVersion"
+        testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
+    }
+
+    plugins.withType(JavaPlugin) {
+        project.sourceCompatibility = JavaVersion.VERSION_17
+    }
+    tasks.withType(JavaCompile) {
+        options.encoding = "UTF-8"
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+    jar {
+        manifest {
+            attributes(
+                    'Built-By': 'Codingendless',
+                    'Build-Timestamp': DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(LocalDateTime.now()),
+                    'Build-Revision': versioning.info.commit,
+                    'Created-By': "Gradle ${gradle.gradleVersion}",
+                    'Build-Jdk': "${System.properties['java.version']} (${System.properties['java.vendor']} ${System.properties['java.vm.version']})",
+                    'Build-OS': "${System.properties['os.name']} ${System.properties['os.arch']} ${System.properties['os.version']}"
+            )
+        }
+    }
+
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                groupId = 'com.fortycoderplus.template'
+                artifactId = project.name
+                version = project.version
+
+                from components.java
+
+                pom {
+                    name = "Gradle Multi Module Template"
+                    description = 'Gradle Multi Module Template'
+                    url = "${scmUrl}"
+                    developers {
+                        developer {
+                            id = 'Codingendless'
+                            name = 'Codingendless'
+                            email = 'codingendless@40coderplus.com'
+                        }
+                    }
+                    scm {
+                        connection = "scm:git:${scmGit}"
+                        url = "${scmUrl}"
+                    }
+                }
+            }
+        }
+        repositories {
+            maven {
+                credentials {
+                    username "$nexusUsername"
+                    password "$nexusPassword"
+                }
+                url = version.endsWith('SNAPSHOT') ? "$nexusRelease" : "$nexusSnapshot"
+                allowInsecureProtocol = !url.toString().startsWith("https://")
+            }
+        }
+    }
+}
+
+apply from: 'baseline.gradle'
+apply from: 'sonar.gradle'
